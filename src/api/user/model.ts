@@ -9,7 +9,7 @@ import { accessTokenSecret, refreshTokenSecret } from "../../config";
 
 export interface IUser extends Document {
   username: string;
-  emailId: string;
+  email: string;
   phoneNumber: string;
   password: string;
   verifyCode?: string;
@@ -28,6 +28,13 @@ export interface IUser extends Document {
 
 interface IUserModel extends Model<IUser> {}
 
+export interface IAccessTokenPayload {
+  _id: string;
+  email: string;
+  username: string;
+  verifyCode?: string;
+}
+
 /* =========================
    Schema
 ========================= */
@@ -39,7 +46,7 @@ const userSchema = new Schema<IUser>(
       required: true,
       trim: true
     },
-    emailId: {
+    email: {
       type: String,
       required: true,
       unique: true,
@@ -120,9 +127,9 @@ userSchema.methods.isPasswordCorrect = async function (
 
 userSchema.methods.generateAccessToken = function (): string {
 
-  const accessTokenPayload = {
+  const accessTokenPayload: IAccessTokenPayload = {
     _id: this._id,
-    emailId: this.emailId,
+    email: this.email,
     username: this.username,
     verifyCode: this.verifyCode
   };
