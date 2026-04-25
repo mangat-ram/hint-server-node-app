@@ -1,10 +1,10 @@
 import jwt from "jsonwebtoken";
 import { IAccessTokenPayload, User } from "../../api/user/model";
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { accessTokenSecret } from "../../config";
 import { AuthorizedRequest } from "../../services/request";
 
-const token = async (req: AuthorizedRequest, res: Response, next: NextFunction) => {
+const token = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const token = 
       req.cookies?.accessToken ||
@@ -23,7 +23,7 @@ const token = async (req: AuthorizedRequest, res: Response, next: NextFunction) 
       return res.status(404).json({ message: "User not found" });
     }
 
-    req.user = user;
+    (req as AuthorizedRequest).user = user;
     next();
   } catch (err) {
     next(err);

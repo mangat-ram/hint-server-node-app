@@ -29,30 +29,30 @@ const generateAccessAndRefreshTokens = async (userId: string) => {
   }
 }
 
-const checkUniqueUser = async (req: ParameterizedRequest<{ email: string }>, res: Response) => {
+const checkUniqueUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email } = req.params;
+    const { email } = (req as ParameterizedRequest<{ email: string }>).params;
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "Email is already in use." });
+      res.status(400).json({ success: false, message: "Email is already in use." });
     }
 
-    return res.status(200).json({ message: "Email is available." });
+    res.status(200).json({ success: true, message: "Email is available." });
   } catch (error) {
     console.error("Error checking unique user:", error);
-    throw error;
+    res.status(500).json({ success: false, message: "Error checking email availability." });
   }
 }
 
-const signUp = async (req: Request, res: Response) => {
+const signUp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, phoneNumber, isAdmin } = req.body;
     if (!username || !email || !phoneNumber) {
-      return res.status(400).json({ message: "Username, email, and phone number are required." });
+      res.status(400).json({ success: false, message: "Username, email, and phone number are required." });
     } 
     const existingUser = await User.findOne({ $or: [{ email }, { phoneNumber }] });
     if (existingUser) {
-      return res.status(409).json({ message: "Email or phone number is already in use." });
+      res.status(409).json({ success: false, message: "Email or phone number is already in use." });
     }
 
     // Generate a 6-digit random verification code
@@ -80,42 +80,44 @@ const signUp = async (req: Request, res: Response) => {
       await sendOtp(phoneNumber, verifyCode);
     }
 
-    return res.status(201).json({ user: resUser, accessToken, refreshToken });
+    res.status(201).json({ user: resUser, accessToken, refreshToken });
   } catch (error) {
     console.error("Error signing up:", error);
-    throw error;
+    res.status(500).json({ success: false, message: "Internal Server Error: Sign up failed" });
   }
 }
 
-const update = async (req: AuthorizedRequest, res: Response) => {
+const update = async (req: Request, res: Response) => {
   try {
-    const user = req.user;
+    const user = (req as AuthorizedRequest).user;
     const { username, email, phoneNumber, address, city, state, pincode } = req.body;
     const updatedFields = { username, email, phoneNumber, address, city, state, pincode };
-    await User.findByIdAndUpdate(user._id, updatedFields, { new: true });
-    return res.status(200).json({ user: req.user, message: "User details updated successfully." });
+    const updatedUser = await User.findByIdAndUpdate(user._id, updatedFields, { new: true });
+    res.status(200).json({ success: true, message: "User details updated successfully.", user: updatedUser });
   } catch (error: any) {
-    return res.status(500).json({ message: `Something went wrong: ${error.message}: Update Failed` });
+    res.status(500).json({ success: false, message: `Something went wrong: ${error.message}: Update Failed` });
   }
 }
 
-const signIn = async (req: Request, res: Response) => {
+const signIn = async (req: Request, res: Response): Promise<void> => {
   try {
     const { emailOrPhone, password } = req.body;
     if (!emailOrPhone || !password) {
-      return res.status(400).json({ message: "Email/Phone and password are required." });
+      res.status(400).json({ success: false, message: "Email/Phone and password are required." });
     }
     const user = await User.findOne({ $or: [{ email: emailOrPhone }, { phoneNumber: emailOrPhone }] });
     if (!user) {
-      return res.status(404).json({ message: "User not found." });
+      res.status(404).json({ success: false, message: "User not found." });
+      return;
     } 
     if (user.password === "notAdded") {
-      return res.status(403).json({ message: "Please complete sign up process first." });
+      res.status(403).json({ success: false, message: "Please complete sign up process first." });
     }
 
     const isPasswordValid = await user.isPasswordCorrect(password);
     if (!isPasswordValid) {
-      return res.status(404).json({ message: "password is incorrect" })
+      res.status(401).json({ success: false, message: "Incorrect password." });
+      return;
     }
   
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens((user._id).toString());
@@ -131,21 +133,21 @@ const signIn = async (req: Request, res: Response) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 
     };
 
-    return res
-      .status(200)
+    res.status(200)
       .cookie("accessToken", accessToken, options)
       .cookie("refreshToken", refreshToken, options)
-      .json({ user: loggedInUser, accessToken, refreshToken, message: "Sign in successful." });
+      .json({ success: true, message: "Sign in successful.", user: loggedInUser, accessToken, refreshToken });
   } catch (error) {
     console.error("Error signing in:", error);
-    return res.status(500).json({ message: "Internal Server Error: Sign in failed" });
+    res.status(500).json({ success: false, message: "Internal Server Error: Sign in failed" });
   }
 }
 
-const signOut = async (req: AuthorizedRequest, res: Response) => {
+const signOut = async (req:Request, res: Response): Promise<void> => {
   try {
+    const user = (req as AuthorizedRequest).user;
     await User.findByIdAndUpdate(
-      req.user._id,
+      user._id,
       { $set: { refreshToken: undefined } },
       { new: true }
     )
@@ -155,56 +157,59 @@ const signOut = async (req: AuthorizedRequest, res: Response) => {
       secure: true
     }
   
-    return res
-      .status(200)
+    res.status(200)
       .clearCookie("accessToken", options)
       .clearCookie("refreshToken", options)
       .json({ success: true, message: "user logged out successfully." });
   } catch (error) {
-    return res
-      .status(400)
+    res.status(400)
       .json({ success: false, message: `something went wrong in catch part error of logout : ${error}` })
   }
 }
 
-const getMe = async (req: AuthorizedRequest, res: Response) => {
+const getMe = async (req: Request, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user._id).select("-password -refreshToken -verifyCode");
+    const userId = (req as AuthorizedRequest).user._id;
+    const user = await User.findById(userId).select("-password -refreshToken -verifyCode");
     if (!user) {
-      return res.status(404).json({ message: "User not found." });
+      res.status(404).json({ message: "User not found." });
+      return;
     }
-    return res.status(200).json({ user });
+    res.status(200).json({ user });
   } catch (error) {
     console.error("Error fetching user details:", error);
-    return res.status(500).json({ message: "Internal Server Error: Failed to fetch user details" });
+    res.status(500).json({ message: "Internal Server Error: Failed to fetch user details" });
   }
 }
 
-const verifyOtp = async (req: AuthorizedRequest, res: Response) => {
+const verifyOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { otp } = req.body;
     if (!otp) {
-      return res.status(400).json({ message: "OTP is required." });
+      res.status(400).json({ message: "OTP is required." });
+      return;
     }
 
-    const user = req.user;
+    const user = (req as AuthorizedRequest).user;
     const sourceOtp = user.verifyCode;
     if (sourceOtp !== otp) {
-      return res.status(400).json({ success: false, message: "Invalid OTP." });
+      res.status(401).json({ success: false, message: "Incorrect OTP." });
+      return;
     }
 
-    return res.status(200).json({ success: true, message: "OTP verified successfully." });
+    res.status(200).json({ success: true, message: "OTP verified successfully." });
   } catch (error) {
     console.error("Error verifying OTP:", error);
-    return res.status(500).json({ success: false, message: "Internal Server Error: OTP verification failed" });
+    res.status(500).json({ success: false, message: "Internal Server Error: OTP verification failed" });
   }
 }
 
-const exists = async (req: QueryParameterizedRequest<{ email: string, phoneNumber: string }>, res: Response) => {
+const exists = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, phoneNumber } = req.query;
+    const { email, phoneNumber } = (req as QueryParameterizedRequest<{ email: string, phoneNumber: string }>).query;
     if (!email && !phoneNumber) {
-      return res.status(400).json({ message: "Email or phone number is required." });
+      res.status(400).json({ success: false, message: "Email or phone number is required." });
+      return;
     }
 
     const query: any = {};
@@ -213,30 +218,30 @@ const exists = async (req: QueryParameterizedRequest<{ email: string, phoneNumbe
 
     const userExists = await User.findOne(query).select("_id verifyCode");
     if (!userExists) {
-      return res
-        .status(200)
-        .json({ success: true, message: "User check successful", exists: false });
+      res.status(200).json({ success: true, message: "User check successful", exists: false });
+      return;
     }
 
     const otp = userExists.verifyCode;
     if (!otp) {
-      return res.status(500).json({ success: false, message: "OTP not found for the user" });
+      res.status(500).json({ success: false, message: "OTP not found for the user" });
+      return;
     }
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens((userExists._id).toString());
     if (email) {
       await sendMail(email, "OTP", otp);
-      return res.status(200).json({ success: true, message: "OTP sent to the email successfully", exists: true, accessToken });
+      res.status(200).json({ success: true, message: "OTP sent to the email successfully", exists: true, accessToken });
     } else if (phoneNumber) {
       await sendOtp(phoneNumber, otp);
-      return res.status(200).json({ success: true, message: "OTP sent to the number successfully", exists: true, accessToken });
+      res.status(200).json({ success: true, message: "OTP sent to the number successfully", exists: true, accessToken });
     }
   } catch (error) {
     console.error("Error checking user existence:", error);
-    return res.status(500).json({ message: "Internal Server Error: Failed to check user existence" });
+    res.status(500).json({ success: false, message: "Internal Server Error: Failed to check user existence" });
   }
 }
 
-const sendFeedback = async (req: AuthorizedRequest, res: Response) => {
+const sendFeedback = async (req: Request, res: Response): Promise<void> => {
   try {
     const { query, name, email, text } = req.body;
     const feedbackData = { query, name, email, text };
@@ -245,26 +250,26 @@ const sendFeedback = async (req: AuthorizedRequest, res: Response) => {
       "New User Feedback",
       feedbackData
     )
-    return res.status(200).json({ success: true, message: "Feedback sent successfully." });
+    res.status(200).json({ success: true, message: "Feedback sent successfully." });
   } catch (error: any) {
-    return res.status(500).json({ success: false, message: `Something went wrong: ${error.message}` });
+    res.status(500).json({ success: false, message: `Something went wrong: ${error.message}` });
   }
 }
 
-const deleteUser = async (req: AuthorizedRequest, res: Response) => {
+const remove = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = (req as AuthorizedRequest).user._id;
     await User.findByIdAndDelete(userId);
-    return res.status(200).json({ success: true, message: "User account deleted successfully." });
+    res.status(200).json({ success: true, message: "User account deleted successfully." });
   } catch (error) {
     console.error("Error deleting user account:", error);
-    return res.status(500).json({ success: false, message: "Internal Server Error: Failed to delete user account" });
+    res.status(500).json({ success: false, message: "Internal Server Error: Failed to delete user account" });
   } 
 }
 
-const getDoctorByRegistrationNumber = async (req: ParameterizedRequest<{ registrationNumber: string }>, res: Response) => {
+const getDoctorByRegistrationNumber = async (req: Request, res: Response): Promise<void>  => {
   try {
-    const { registrationNumber } = req.params;
+    const { registrationNumber } = (req as ParameterizedRequest<{ registrationNumber: string }>).params;
     const payload = {
       smcs: "",
       regnNo: registrationNumber.toString(),        // dynamic value
@@ -279,13 +284,13 @@ const getDoctorByRegistrationNumber = async (req: ParameterizedRequest<{ registr
     }
     const response = await axios.post( blacklistedDoctorsUrl, payload, headers);
     if (response.data && response.data.length > 0) {
-      return res.status(200).json({ doctor: response.data[0], message: "Doctor details fetched successfully." });
+      res.status(200).json({ success: true, doctor: response.data[0], message: "Doctor details fetched successfully." });
     } else {
-      return res.status(404).json({ message: "Doctor not found." });
+      res.status(404).json({ success: false, message: "Doctor not found." });
     }
   } catch (error) {
     console.error("Error fetching doctor details:", error);
-    return res.status(500).json({ message: "Internal Server Error: Failed to fetch doctor details" });
+    res.status(500).json({ success: false, message: "Internal Server Error: Failed to fetch doctor details" });
   } 
 }
 
@@ -295,5 +300,10 @@ export {
   signOut,
   getMe,
   update, 
-  checkUniqueUser
+  checkUniqueUser,
+  exists,
+  remove,
+  verifyOtp,
+  sendFeedback,
+  getDoctorByRegistrationNumber
 };

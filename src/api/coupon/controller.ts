@@ -1,6 +1,6 @@
 import { Coupon } from "./model";
 import { IUser, User } from "../user/model";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { AuthorizedRequest } from "../../services/request";
 
 function generateCouponCode(): string {
@@ -23,25 +23,25 @@ function createUniqueCoupon(existingCoupons: Set<string>): string {
   return newCoupon;
 }
 
-const addCouponToUser = async (req: AuthorizedRequest, res: Response) => {
+const addCouponToUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requestUser = req.user as IUser;
+    const requestUser = (req as AuthorizedRequest).user as IUser;
     if (!requestUser) {
-      return res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ error: "Unauthorized" });
     }
 
     if(!requestUser.isAdmin) {
-      return res.status(403).json({ error: "Forbidden" });
+      res.status(403).json({ error: "Forbidden" });
     }
 
     const { couponName, userId } = req.body;
     if (!couponName || !userId) {
-      return res.status(400).json({ error: "Coupon name and user ID are required" });
+      res.status(400).json({ error: "Coupon name and user ID are required" });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      res.status(404).json({ error: "User not found" });
     }
 
     let couponCode: string;
@@ -59,9 +59,78 @@ const addCouponToUser = async (req: AuthorizedRequest, res: Response) => {
 
     const createdCoupon = await Coupon.create(couponObj);
 
-    return res.status(201).json({ message: "Coupon created and added to user", coupon: createdCoupon });
+    res.status(201).json({ message: "Coupon created and added to user", coupon: createdCoupon });
   } catch (error) {
     console.error("Error adding coupon to user:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
+}
+
+const generateCoupons = async (req: Request, res: Response): Promise<void> => {
+  try {
+    let existingCoupons = new Set(
+      (await Coupon.find({}, "couponCode")).map((c) => c.couponCode)
+    );
+
+    let couponsToInsert = [];
+
+    while (couponsToInsert.length < 10) {
+      let newCouponCode;
+      do {
+        newCouponCode = generateCouponCode();
+      } while (existingCoupons.has(newCouponCode));
+
+      existingCoupons.add(newCouponCode);
+      couponsToInsert.push({ couponCode: newCouponCode });
+    }
+
+    const createdCoupons = await Coupon.insertMany(couponsToInsert);
+
+    res.status(201)
+      .json({ success: true, message: "Coupons generated successfully", coupons: createdCoupons });
+  } catch (error: any) {
+    res.status(500)
+      .json({ success: false, error: `Something went wrong at generateCoupons: ${error.message}` });
+  }
+}
+
+const deleteCoupon = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const reqUser = (req as AuthorizedRequest).user;
+  
+    if (!reqUser) {
+      res.status(401).json({success: false, error: "Unauthorized"})
+    }
+  
+    if (reqUser.isAdmin === false) {
+      res.status(403).json({ success: false, error: "Forbidden" })
+    }
+  
+    const { couponName, userId } = req.body;
+  
+    if (!couponName || !userId) {
+      res.status(400).json({ success: false, error: "Coupon name and user ID are required" })
+    }
+  
+    const coupon = await Coupon.findOne({couponName});
+    const user = await User.findById(userId);
+  
+    if (!coupon || !user) {
+      res.status(404)
+        .json({ success: false, error: "user and coupon not found,try with different id or coupon." })
+    }
+  
+    await Coupon.findOneAndDelete({ couponName, couponOwner:userId })
+  
+    res.status(204).json({ success: true, message: "Coupon deleted successfully" })
+  } catch (error: any) {
+    res.status(500)
+      .json({ success: false, error: `Something went wrong at deleteCoupon: ${error.message}` })
+  }
+}
+
+export {
+  addCouponToUser,
+  generateCoupons,
+  deleteCoupon
 }
