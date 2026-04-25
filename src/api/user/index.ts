@@ -6,7 +6,7 @@ const router = Router();
 
 router.post("/", signUp);
 router.post("/login", signIn);
-router.get("/:email", checkUniqueUser);
+router.get("/email/:email", checkUniqueUser);
 router.get("/exists", exists);
 router.post("/feedback", sendFeedback)
 router.get("/doctors/:registrationNumber", getDoctorByRegistrationNumber);

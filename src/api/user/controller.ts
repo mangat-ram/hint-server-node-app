@@ -105,7 +105,7 @@ const signIn = async (req: Request, res: Response): Promise<void> => {
     if (!emailOrPhone || !password) {
       res.status(400).json({ success: false, message: "Email/Phone and password are required." });
     }
-    const user = await User.findOne({ $or: [{ email: emailOrPhone }, { phoneNumber: emailOrPhone }] });
+    const user = await User.findOne({ $or: [{ email: emailOrPhone.email }, { phoneNumber: emailOrPhone.phoneNumber }] });
     if (!user) {
       res.status(404).json({ success: false, message: "User not found." });
       return;
@@ -126,16 +126,17 @@ const signIn = async (req: Request, res: Response): Promise<void> => {
       "-password -refreshToken -verifyCode"
     )
 
-    const options = { 
-      httpOnly: true, 
-      secure: true, 
-      sameSite: "strict" as const,
-      maxAge: 7 * 24 * 60 * 60 * 1000 
-    };
+    // Cookies logic is commented out for now, can be enabled if needed. If enabled, make sure to set the cookies in the frontend as well and handle them securely.
+    // const options = { 
+    //   httpOnly: true, 
+    //   secure: true, 
+    //   sameSite: "strict" as const,
+    //   maxAge: 7 * 24 * 60 * 60 * 1000 
+    // };
+    //   .cookie("refreshToken", refreshToken, options)
+    //   .cookie("accessToken", accessToken, options)
 
     res.status(200)
-      .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
       .json({ success: true, message: "Sign in successful.", user: loggedInUser, accessToken, refreshToken });
   } catch (error) {
     console.error("Error signing in:", error);
@@ -152,14 +153,15 @@ const signOut = async (req:Request, res: Response): Promise<void> => {
       { new: true }
     )
   
-    const options = {
-      httpOnly: true,
-      secure: true
-    }
+    // If using cookies, clear them here. Make sure to set the same options as when they were set.
+    // const options = {
+    //   httpOnly: true,
+    //   secure: true
+    // }
+    // .clearCookie("accessToken", options)
+    // .clearCookie("refreshToken", options)
   
     res.status(200)
-      .clearCookie("accessToken", options)
-      .clearCookie("refreshToken", options)
       .json({ success: true, message: "user logged out successfully." });
   } catch (error) {
     res.status(400)
@@ -213,7 +215,7 @@ const exists = async (req: Request, res: Response): Promise<void> => {
     }
 
     const query: any = {};
-    if (email) query.emailId = email;
+    if (email) query.email = email;
     if (phoneNumber) query.phoneNumber = phoneNumber;
 
     const userExists = await User.findOne(query).select("_id verifyCode");
@@ -260,7 +262,7 @@ const remove = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as AuthorizedRequest).user._id;
     await User.findByIdAndDelete(userId);
-    res.status(200).json({ success: true, message: "User account deleted successfully." });
+    res.status(204).json({ success: true, message: "User account deleted successfully." });
   } catch (error) {
     console.error("Error deleting user account:", error);
     res.status(500).json({ success: false, message: "Internal Server Error: Failed to delete user account" });

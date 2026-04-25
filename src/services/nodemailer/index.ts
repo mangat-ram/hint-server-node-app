@@ -1,5 +1,5 @@
 import nodemailer, { Transporter } from "nodemailer";
-import { mailPassword, mailUsername } from "../../../config";
+import { mailPassword, mailUsername } from "../../config";
 
 /* =========================
    Types

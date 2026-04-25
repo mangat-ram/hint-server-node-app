@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-// import { port, apiVersion } from "../../config";
+import { apiVersion } from "../../config";
 import cookieParser from "cookie-parser";
 
 const app = express();
@@ -14,5 +14,12 @@ app.get("/ping", (req: Request, res: Response) => {
     message: "pong",
   });
 });
+
+import userRoutes from "../../api/user";
+import couponRoutes from "../../api/coupon";
+
+//API Routes
+app.use(`${apiVersion}/users`, userRoutes);
+app.use(`${apiVersion}/coupons`, couponRoutes);
 
 export default app;

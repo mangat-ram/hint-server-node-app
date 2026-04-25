@@ -27,21 +27,21 @@ const addCouponToUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const requestUser = (req as AuthorizedRequest).user as IUser;
     if (!requestUser) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
     if(!requestUser.isAdmin) {
-      res.status(403).json({ error: "Forbidden" });
+      res.status(403).json({ success: false, error: "Forbidden" });
     }
 
     const { couponName, userId } = req.body;
     if (!couponName || !userId) {
-      res.status(400).json({ error: "Coupon name and user ID are required" });
+      res.status(400).json({ success: false, error: "Coupon name and user ID are required" });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      res.status(404).json({ error: "User not found" });
+      res.status(404).json({ success: false, error: "User not found" });
     }
 
     let couponCode: string;
@@ -59,7 +59,7 @@ const addCouponToUser = async (req: Request, res: Response): Promise<void> => {
 
     const createdCoupon = await Coupon.create(couponObj);
 
-    res.status(201).json({ message: "Coupon created and added to user", coupon: createdCoupon });
+    res.status(201).json({ success: true, message: "Coupon created and added to user", coupon: createdCoupon });
   } catch (error) {
     console.error("Error adding coupon to user:", error);
     res.status(500).json({ success: false, error: "Internal Server Error" });
@@ -68,6 +68,11 @@ const addCouponToUser = async (req: Request, res: Response): Promise<void> => {
 
 const generateCoupons = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { couponName } = req.body;
+    if (!couponName) {
+      res.status(400).json({ success: false, error: "Coupon name is required" });
+      return;
+    }
     let existingCoupons = new Set(
       (await Coupon.find({}, "couponCode")).map((c) => c.couponCode)
     );
@@ -81,7 +86,7 @@ const generateCoupons = async (req: Request, res: Response): Promise<void> => {
       } while (existingCoupons.has(newCouponCode));
 
       existingCoupons.add(newCouponCode);
-      couponsToInsert.push({ couponCode: newCouponCode });
+      couponsToInsert.push({ couponName, couponCode: newCouponCode});
     }
 
     const createdCoupons = await Coupon.insertMany(couponsToInsert);
@@ -120,7 +125,7 @@ const deleteCoupon = async (req: Request, res: Response): Promise<void> => {
         .json({ success: false, error: "user and coupon not found,try with different id or coupon." })
     }
   
-    await Coupon.findOneAndDelete({ couponName, couponOwner:userId })
+    await Coupon.findOneAndDelete({ couponName, couponOwner: userId })
   
     res.status(204).json({ success: true, message: "Coupon deleted successfully" })
   } catch (error: any) {
