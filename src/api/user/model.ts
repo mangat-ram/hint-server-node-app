@@ -49,13 +49,11 @@ const userSchema = new Schema<IUser>(
     email: {
       type: String,
       required: true,
-      unique: true,
       trim: true
     },
     phoneNumber: {
       type: String,
       required: true,
-      unique: true,
       trim: true
     },
     password: {
