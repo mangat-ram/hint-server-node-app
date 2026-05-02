@@ -47,8 +47,8 @@ const checkUniqueUser = async (req: Request, res: Response): Promise<void> => {
 const signUp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, phoneNumber, isAdmin } = req.body;
-    if (!username || !email || !phoneNumber) {
-      res.status(400).json({ success: false, message: "Username, email, and phone number are required." });
+    if (!email && !phoneNumber) {
+      res.status(400).json({ success: false, message: "Either email or phone number is required." });
     } 
     const existingUser = await User.findOne({ $or: [{ email }, { phoneNumber }] });
     if (existingUser) {
@@ -59,7 +59,7 @@ const signUp = async (req: Request, res: Response): Promise<void> => {
     const verifyCode = Math.floor(100000 + Math.random() * 900000);
   
     const userData = {
-      username,
+      username: username || "notAdded",
       email: email || "notAdded",
       phoneNumber: phoneNumber || "notAdded",
       password: "notAdded",
