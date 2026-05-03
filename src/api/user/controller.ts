@@ -7,7 +7,7 @@ import { sendOtp } from "../../services/sms";
 import { blacklistedDoctorsUrl } from "../../config";
 import axios from "axios";
 
-const agent = new https.Agent({ rejectUnauthorized: false });// bypass SSL verification
+export const agent = new https.Agent({ rejectUnauthorized: false });// bypass SSL verification
 
 const generateAccessAndRefreshTokens = async (userId: string) => {
   try {
@@ -98,6 +98,67 @@ const update = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: `Something went wrong: ${error.message}: Update Failed` });
   }
 }
+
+const updatePartially = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthorizedRequest).user;
+
+    const allowedFields = [
+      "username",
+      "email",
+      "phoneNumber",
+      "gender",
+      "dob",
+      "institutionName",
+      "yearOfGraduation",
+      "yearOfRegistration",
+      "registrationNumber",
+      "address",
+      "city",
+      "state",
+      "pincode"
+    ];
+
+    // Build dynamic update object
+    const updates: any = {};
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    // Nothing to update
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid fields provided for update"
+      });
+    }
+
+    // Update only provided fields
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { $set: updates },
+      {
+        new: true,
+        runValidators: true
+      }
+    ).select("-password -refreshToken -verifyCode");
+
+    return res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user: updatedUser
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: `Something went wrong: ${error.message}`
+    });
+  }
+};
 
 const signIn = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -307,5 +368,7 @@ export {
   remove,
   verifyOtp,
   sendFeedback,
-  getDoctorByRegistrationNumber
+  getDoctorByRegistrationNumber,
+  generateAccessAndRefreshTokens,
+  updatePartially
 };
