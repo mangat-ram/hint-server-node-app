@@ -9,11 +9,18 @@ import { accessTokenSecret, refreshTokenSecret } from "../../config";
 
 export interface IUser extends Document {
   username: string;
+  gender: "male" | "female" | "other" | "notAdded";
+  dob: string;
   email: string;
   phoneNumber: string;
+  institutionName: string;
+  yearOfGraduation: string;
+  yearOfRegistration: string;
+  registrationNumber: string;
   password: string;
   verifyCode?: string;
   refreshToken?: string;
+  role: "user" | "doctor" | "admin";
   isAdmin: boolean;
   address: string;
   city: string;
@@ -43,25 +50,45 @@ const userSchema = new Schema<IUser>(
   {
     username: {
       type: String,
-      required: true,
+      trim: true
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+    },
+    dob: {
+      type: String,
+    },
+    institutionName: {
+      type: String,
+      trim: true
+    },
+    yearOfGraduation: {
+      type: String,
+      trim: true
+    },
+    yearOfRegistration: {
+      type: String,
+      trim: true
+    },
+    registrationNumber: {
+      type: String,
       trim: true
     },
     email: {
       type: String,
-      required: true,
-      trim: true
+      trim: true,
+      unique: true
     },
     phoneNumber: {
       type: String,
-      required: true,
-      trim: true
+      trim: true,
+      required: [true, "phone number is required"],
+      unique: true
     },
     password: {
       type: String,
       required: [true, "password is required"]
-    },
-    verifyCode: {
-      type: String
     },
     refreshToken: {
       type: String
@@ -70,24 +97,28 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false
     },
+    verifyCode: {
+      type: String
+    },
+    role: {
+      type: String,
+      enum: ["user", "doctor", "admin"],
+      default: "user"
+    },
     address: {
       type: String,
-      required: true,
       trim: true
     },
     city: {
       type: String,
-      required: true,
       trim: true
     },
     state: {
       type: String,
-      required: true,
       trim: true
     },
     pincode: {
       type: String,
-      required: true,
       trim: true
     },
     coupons: [
