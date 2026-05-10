@@ -48,7 +48,6 @@ const userSchema = new Schema<IUser>(
     },
     email: {
       type: String,
-      required: true,
       trim: true
     },
     phoneNumber: {
