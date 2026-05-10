@@ -17,9 +17,11 @@ app.get("/ping", (req: Request, res: Response) => {
 
 import userRoutes from "../../api/user";
 import couponRoutes from "../../api/coupon";
+import doctorRoutes from "../../api/doctor";
 
 //API Routes
 app.use(`${apiVersion}/users`, userRoutes);
 app.use(`${apiVersion}/coupons`, couponRoutes);
+app.use(`${apiVersion}/doctors`, doctorRoutes);
 
 export default app;

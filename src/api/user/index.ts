@@ -1,5 +1,18 @@
 import { Router } from "express";
-import { checkUniqueUser, exists, getDoctorByRegistrationNumber, getMe, remove, sendFeedback, signIn, signOut, signUp, update, verifyOtp } from "./controller";
+import { 
+  checkUniqueUser, 
+  exists, 
+  getDoctorByRegistrationNumber, 
+  getMe, 
+  remove, 
+  sendFeedback, 
+  signIn, 
+  signOut, 
+  signUp, 
+  update, 
+  updatePartially, 
+  verifyOtp 
+} from "./controller";
 import { token } from "../../services/token";
 
 const router = Router();
@@ -16,6 +29,7 @@ router.post("/logout", token, signOut);
 router.get("/me", token, getMe);
 router.post("/otp", token, verifyOtp);
 router.put("/", token, update);
+router.patch("/", token, updatePartially);
 router.delete("/", token, remove);
 
 export default router;
